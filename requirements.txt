@@ -1,0 +1,71 @@
+# ============================================================
+# requirements.txt — Banking77 Intent Classifier
+# ============================================================
+#
+# Install everything with:
+#   pip install -r requirements.txt
+#
+# Or install into your existing venv:
+#   source ~/venv/bin/activate
+#   pip install -r requirements.txt
+#
+# ── Core ML / NLP ────────────────────────────────────────────
+#
+# torch: PyTorch — the deep learning framework. HuggingFace runs on top of it.
+#   Everything (model weights, input tensors, gradients) lives in PyTorch.
+torch>=2.0.0
+
+# transformers: HuggingFace library with pre-trained models + Trainer.
+#   Gives us AutoTokenizer, AutoModelForSequenceClassification, Trainer.
+transformers>=4.40.0
+
+# datasets: HuggingFace library for loading + processing datasets.
+#   Used to load banking77 and run .map() for tokenization.
+datasets>=3.0.0
+
+# evaluate: HuggingFace metrics library (separate package from transformers).
+#   Used for the accuracy metric in compute_metrics.
+evaluate>=0.4.0
+
+# scikit-learn: classic ML library. We use it for macro F1 computation.
+#   Also useful for Day 3's confusion matrix.
+scikit-learn>=1.3.0
+
+# numpy: array math. Used to run argmax on model logits during evaluation.
+numpy>=1.24.0
+
+# accelerate: HuggingFace library that makes Trainer work on GPU/multi-GPU.
+#   Required by Trainer even if you're on CPU.
+accelerate>=0.27.0
+
+# ── Data / Visualization (Days 1-3) ──────────────────────────
+#
+# matplotlib: used in Day 1 for class distribution chart.
+#   Day 3 will use it for the confusion matrix heatmap.
+matplotlib>=3.7.0
+
+# seaborn: prettier statistical plots. Used in Day 3 for confusion matrix.
+seaborn>=0.12.0
+
+# pandas: tabular data. Useful for per-class F1 breakdowns in Day 3.
+pandas>=2.0.0
+
+# ── API + Deployment (Days 4-5) ──────────────────────────────
+#
+# fastapi: the web framework for our /predict endpoint.
+#   Modern, async, auto-generates /docs (Swagger UI) for free.
+fastapi>=0.110.0
+
+# uvicorn: the ASGI server that runs FastAPI.
+#   You'll run: uvicorn app.main:app --host 0.0.0.0 --port 8000
+uvicorn[standard]>=0.27.0
+
+# pydantic: data validation for FastAPI request/response schemas.
+#   FastAPI is built on it — it's how we define what /predict expects.
+pydantic>=2.0.0
+
+# boto3: AWS SDK for Python. Used on Day 5 to push the model to S3.
+boto3>=1.34.0
+
+# python-multipart: needed by FastAPI to handle form data.
+python-multipart>=0.0.9

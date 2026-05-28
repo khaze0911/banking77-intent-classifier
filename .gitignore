@@ -1,0 +1,24 @@
+# Model weights and checkpoints — too large for GitHub, goes to S3
+models/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Generated outputs
+assets/error_analysis.csv
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Secrets
+.env
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+
