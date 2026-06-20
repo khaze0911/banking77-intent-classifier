@@ -1,7 +1,9 @@
 # Notebooks — not needed at inference time
 notebooks/
 
-# Checkpoints — large, only the final model goes in
+# Checkpoints — large, only the final model goes in the image
+checkpoints/
+**/checkpoint-*/
 models/checkpoints/
 
 # Assets — plots and CSVs, not needed at runtime

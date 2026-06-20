@@ -25,11 +25,11 @@ Many intents are semantically adjacent (`verify_my_identity` vs. `why_verify_ide
 - **Dataset:** Banking77 (~10k train / 3,076 test examples)
 - **Fine-tuning:** Full model (not frozen backbone) with `AutoModelForSequenceClassification`
 - **Hardware:** Single GPU, ~15 minutes training time
-- **Config:** `load_best_model_at_end=True` — final weights are the best checkpoint by eval loss
-- **Checkpoint directory:** `output_dir="../checkpoints/banking77-distilbert"` — kept separate from the final model directory to avoid accidentally uploading training checkpoints to HuggingFace
+- **Config:** `load_best_model_at_end=True` final weights are the best checkpoint by eval loss
+- **Checkpoint directory:** `output_dir="../checkpoints/banking77-distilbert"` kept separate from the final model directory to avoid shipping training checkpoints
 
 ### Why DistilBERT?
- Near-BERT accuracy at lower latency and memory cost. It runs comfortably on a CPU-only `t3.small` EC2 instance with sub-second inference.
+Near-BERT accuracy at lower latency and memory cost. It runs comfortably on a CPU-only `t3.small` EC2 instance with sub-second inference.
 
 ---
 
@@ -52,11 +52,11 @@ Nearly pure diagonal across all 77 classes. Off-diagonal mass is minimal and con
 
 ![Per-Class F1](assets/per_class_f1.png)
 
-57 of 77 classes score above 90% F1 (green). The lowest-scoring class, `pending_transfer`, sits at ~80% is still operationally useful. All orange-band classes (80–90%) share a common pattern: they involve transaction states that customers describe in overlapping language (pending, failed, declined, not recognised).
+57 of 77 classes score above 90% F1 (green). The lowest-scoring class, `pending_transfer`, sits at ~80% and is still operationally useful. All orange-band classes (80–90%) share a common pattern: they involve transaction states that customers describe in overlapping language (pending, failed, declined, not recognised).
 
 ### Confusion Analysis
 
-The top confusion pair was `why_verify_identity` ↔ `verify_my_identity` — two labels that describe nearly the same user situation from different framings. This reflects a **dataset labeling ambiguity**, not a model failure. A customer asking "why do I need to verify my identity?" and "I need to verify my identity" would be routed identically in production.
+The top confusion pair was `why_verify_identity` <-> `verify_my_identity`, two labels that describe nearly the same user situation from different framings. This reflects a **dataset labeling ambiguity**, not a model failure. A customer asking "why do I need to verify my identity?" and "I need to verify my identity" would be routed identically in production.
 
 ---
 
@@ -64,7 +64,7 @@ The top confusion pair was `why_verify_identity` ↔ `verify_my_identity` — tw
 
 ![API Demo](assets/api_demo.png)
 
-*"I have been waiting over a week. Is the card still coming?"* → `card_arrival` at 99.01% confidence.
+*"I have been waiting over a week. Is the card still coming?"* -> `card_arrival` at 99.01% confidence.
 
 ---
 
@@ -72,25 +72,25 @@ The top confusion pair was `why_verify_identity` ↔ `verify_my_identity` — tw
 
 ```
 User Request (JSON)
-      │
-      ▼
+      |
+      v
   FastAPI /predict  (POST)
-      │
-      ▼
+      |
+      v
   DistilBERT Tokenizer  (max_length=128, truncation)
-      │
-      ▼
+      |
+      v
   Fine-tuned DistilBERT  (77-class head, model.eval(), torch.no_grad())
-      │
-      ▼
-  Softmax → Top-K Probabilities
-      │
-      ▼
+      |
+      v
+  Softmax -> Top-K Probabilities
+      |
+      v
   JSON Response  (predicted_label, confidence, top_k)
 ```
 
 **Infrastructure:**
-- Docker container → AWS EC2 `t3.small` (CPU-only, Amazon Linux 2023)
+- Docker container -> AWS EC2 `t3.small` (CPU-only, Amazon Linux 2023)
 - Model weights stored in S3 (`s3://classifier-banking77/banking77-distilbert/`)
 - Model card published on HuggingFace Hub
 
@@ -152,11 +152,11 @@ print(result["confidence"])        # 0.97xx
 ### Option 1: Direct (uvicorn)
 
 ```bash
-# Clone and install
+# Clone and install serving dependencies
 git clone https://github.com/khaze0911/banking77-classifier.git
 cd banking77-classifier
-pip install -r requirements.txt
 pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements-serve.txt
 
 # Download model weights from HuggingFace Hub
 python -c "
@@ -164,21 +164,37 @@ from huggingface_hub import snapshot_download
 snapshot_download('khaze0911/banking77-distilbert', local_dir='models/banking77-distilbert')
 "
 
-# Run (from project root — not inside app/)
+# Run (from project root, not inside app/)
 uvicorn app.main:app --reload
 ```
 
 API will be live at `http://localhost:8000`. Visit `/docs` for the Swagger UI.
 
+The model path can be overridden with the `MODEL_PATH` environment variable; it defaults to `./models/banking77-distilbert`.
+
 ### Option 2: Docker
 
 ```bash
-# Build
+# Build the slim CPU-only serving image (weights baked in, ~2GB)
 docker build -t banking77-classifier .
 
 # Run
 docker run -p 8000:8000 banking77-classifier
 ```
+
+The image is self-contained: weights are baked in, so a single `docker run` serves predictions with no extra setup.
+
+---
+
+## Serving Image
+
+The Docker image is a CPU-only inference image, deliberately separated from the training environment:
+
+- **CPU-only PyTorch.** Installed from the CPU wheel index before any other dependency, so the CUDA build (which adds ~3.4GB of unused GPU libraries: `nvidia` runtime + `triton`) is never pulled. Layer ordering matters here: Docker layers are append-only, so installing CUDA torch first and CPU torch later would still leave the CUDA layers baked in.
+- **Serving-only dependencies** (`requirements-serve.txt`). Training and analysis packages (`datasets`, `evaluate`, `scikit-learn`, `pandas`, `matplotlib`, `seaborn`, `accelerate`, `boto3`) are excluded; they are not needed to serve `/predict`.
+- **Weights baked in** (~257MB). The full image is ~2GB.
+
+A separate Kubernetes deployment (in its own repo) uses a weight-less variant of this image that pulls the model at startup via an init container, the pattern used when model artifacts are too large to ship inside the image.
 
 ---
 
@@ -188,8 +204,8 @@ docker run -p 8000:8000 banking77-classifier
 banking77-classifier/
 ├── app/
 │   ├── __init__.py
-│   ├── main.py          # FastAPI app, lifespan handler, routes
-│   └── model.py         # Model loading and inference logic
+│   ├── main.py              # FastAPI app, lifespan handler, routes
+│   └── model.py             # Model loading and inference logic
 ├── assets/
 │   ├── confusion_matrix.png
 │   ├── per_class_f1.png
@@ -201,10 +217,11 @@ banking77-classifier/
 │       ├── model.safetensors
 │       ├── tokenizer.json
 │       └── tokenizer_config.json
-├── checkpoints/         # Training checkpoints (gitignored)
-├── notebooks/           # Training and evaluation notebooks
-├── Dockerfile
-├── requirements.txt
+├── checkpoints/             # Training checkpoints (gitignored, not shipped)
+├── notebooks/               # Training and evaluation notebooks
+├── Dockerfile               # Slim CPU-only serving image
+├── requirements.txt         # Full training + serving dependencies
+├── requirements-serve.txt   # Serving-only dependencies (used by Dockerfile)
 └── README.md
 ```
 
@@ -214,7 +231,7 @@ banking77-classifier/
 
 - **Singleton model loading:** `_tokenizer` and `_model` are loaded once at startup via FastAPI's `lifespan` handler. Per-request loading would add 1–2s latency per call.
 - **Inference mode:** `model.eval()` + `torch.no_grad()` disables dropout and gradient computation for correct, efficient inference.
-- **Top-k output:** The API returns up to 10 ranked predictions — useful for debugging borderline cases and understanding model confidence.
-- **CPU-only PyTorch:** The Docker image uses the CPU-only PyTorch wheel (~1.8GB smaller than the CUDA build), appropriate for `t3.small` inference workloads.
+- **Top-k output:** The API returns up to 10 ranked predictions, useful for debugging borderline cases and understanding model confidence.
+- **Configurable model path:** `MODEL_PATH` is read from the environment (default `./models/banking77-distilbert`), so the same code runs unchanged locally, in Docker, and in Kubernetes.
 
 ---

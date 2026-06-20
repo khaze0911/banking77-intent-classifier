@@ -1,3 +1,4 @@
+import os
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
@@ -7,7 +8,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Model path
 # ---------------------------------------------------------------------------
 
-MODEL_PATH = "./models/banking77-distilbert"
+MODEL_PATH = os.getenv("MODEL_PATH", "./models/banking77-distilbert")
 
 # ---------------------------------------------------------------------------
 # Module-level singletons

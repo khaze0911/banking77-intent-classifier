@@ -1,61 +1,50 @@
 # ---------------------------------------------------------------------------
-# Base image
+# Base image: slim Python, no CUDA. Inference runs on CPU.
 # ---------------------------------------------------------------------------
-
-# CPU-only: we don't need an nvidia/cuda base image since we're not using GPU.
 FROM python:3.12-slim
-
-# ---------------------------------------------------------------------------
-# Working directory
-# ---------------------------------------------------------------------------
 
 WORKDIR /app
 
 # ---------------------------------------------------------------------------
-# Install system dependencies
+# System deps. build-essential only in case a wheel needs to compile.
+# Cache cleared in the same layer so it doesn't bloat the image.
 # ---------------------------------------------------------------------------
-
-# --no-install-recommends keeps the image lean by skipping optional packages.
-# rm -rf /var/lib/apt/lists/* clears the apt cache to reduce image size.
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# Install Python dependencies
+# Install CPU-only PyTorch FIRST, from the CPU wheel index.
+# Critical ordering: if requirements (which list torch) were installed first
+# with no index, pip pulls the CUDA build from PyPI (~2.7GB nvidia libs +
+# ~700MB triton), baked into a lower layer that a later CPU-torch install
+# cannot remove. Installing the CPU wheel up front means CUDA is never fetched.
 # ---------------------------------------------------------------------------
-
-COPY requirements.txt .
-
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Install CPU-only PyTorch explicitly 
 RUN pip install --no-cache-dir \
     torch --index-url https://download.pytorch.org/whl/cpu
 
 # ---------------------------------------------------------------------------
-# Copy application code
+# Serving-only dependencies. Training/analysis deps (datasets, evaluate,
+# scikit-learn, pandas, matplotlib, seaborn, accelerate, boto3) are excluded;
+# they are not needed to serve /predict and only bloat the image.
+# ---------------------------------------------------------------------------
+COPY requirements-serve.txt .
+RUN pip install --no-cache-dir -r requirements-serve.txt
+
+# ---------------------------------------------------------------------------
+# Application code
 # ---------------------------------------------------------------------------
 COPY app/ ./app/
 
 # ---------------------------------------------------------------------------
-# Copy model weights
+# Model weights (257MB) baked in so the standalone image runs with a single
+# `docker run`. The Kubernetes deployment uses a different, weight-less image
+# that downloads weights at startup via an init container.
 # ---------------------------------------------------------------------------
 COPY models/banking77-distilbert ./models/banking77-distilbert
 
-# ---------------------------------------------------------------------------
-# Expose port
-# ---------------------------------------------------------------------------
 EXPOSE 8000
 
-# ---------------------------------------------------------------------------
-# Start the server
-# ---------------------------------------------------------------------------
-#
-# --host 0.0.0.0 is critical: without it uvicorn binds to 127.0.0.1
-# (localhost inside the container) and the container is unreachable
-# from outside. 0.0.0.0 means "accept connections on all interfaces."
-#
-# --workers 1 — one worker process
+# --host 0.0.0.0 so the container is reachable from outside, not just localhost
+# inside the container. --workers 1 keeps memory predictable.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

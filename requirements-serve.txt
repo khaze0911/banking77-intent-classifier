@@ -1,0 +1,17 @@
+# Serving-only dependencies for the Banking77 classifier inference image.
+# Training / analysis deps (datasets, evaluate, matplotlib, seaborn, pandas,
+# scikit-learn, accelerate, boto3) are intentionally excluded. They are not
+# needed to run the /predict endpoint and only bloat the serving image.
+
+# Web framework + ASGI server for the /predict endpoint
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.0.0
+python-multipart>=0.0.9
+
+# Model runtime. torch is installed separately in the Dockerfile from the
+# CPU wheel index so the CUDA build is never pulled.
+transformers>=4.40.0
+
+# transformers needs a tokenizer backend and numpy at inference time
+numpy>=1.24.0
