@@ -7,7 +7,8 @@ Run locally:
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from app.model import load_model, predict
+from app.model import load_model, predict, is_ready
+
 
 # Lifespan handler
 @asynccontextmanager
@@ -54,6 +55,23 @@ class PredictResponse(BaseModel):
     predicted_label: str = Field(description="Highest confidence class")
     confidence: float = Field(description="Prop of top prediction")
     top_k: list[TopKPrediction] = Field(description="Top-k predictions with scores")
+
+
+@app.get("/healthz", tags=["meta"])
+def liveness():
+    # Liveness: is the process up and able to respond at all?
+    # Deliberately doesn't check the model. A model-aware liveness probe
+    # would kill the container during the slow model-load window and cause a
+    # permanent crash loop.
+    return {"status": "alive"}
+
+@app.get("/readyz", tags=["meta"])
+def readiness():
+    # Readiness: can this pod actually serve predictions yet?
+    # Returns 503 until the model and tokenizer are loaded
+    if not is_ready():
+        raise HTTPException(status_code=503, detail="model not loaded")
+    return {"status": "ready"}
 
 # Health check endpoint
 # status check for containerised services

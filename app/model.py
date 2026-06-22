@@ -18,6 +18,11 @@ MODEL_PATH = os.getenv("MODEL_PATH", "./models/banking77-distilbert")
 _tokenizer = None
 _model = None
 
+def is_ready() -> bool:
+    """True once the model and tokenizer are loaded. Read at call time so it
+    reflects current state, not the None values present at import time."""
+    return _model is not None and _tokenizer is not None
+
 # Load the tokenizer and model from disk into memory. Called once at server startup.
 def load_model():
     global _tokenizer, _model
